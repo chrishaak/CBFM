@@ -108,15 +108,15 @@
 
 #' \item{custom_spacetime: }{A custom, pre-specified community-level covariance matrix for the spatio-temporal basis function regression can be supplied. If supplied, it must be a square matrix with dimension equal to the number of columns in `B_spacetime`. Defaults to `NULL`, in which case it is estimated. Note as a side quirk, if this argument is supplied then a corresponding rank (as above) still has to be supplied, even though it is not used.}
 
-#' \item{prior_precision_space: }{An optional fixed precision matrix added directly to the precision of the spatial basis-coefficient random effects during estimation. Defaults to `NULL`, in which case no augmentation is applied and estimation is unchanged. If supplied, it must be a single matrix (not a list), square with dimension equal to the number of columns in `B_space`, symmetric (within `sqrt(.Machine$double.eps)`), and positive semi-definite (eigenvalues >= `-sqrt(.Machine$double.eps)`); rank-deficient matrices are allowed.
+#' \item{prior_covariance_space: }{An optional fixed covariance-shaped matrix supplying a structural penalty on the spatial basis coefficients. Defaults to `NULL`, in which case no augmentation is applied and estimation is unchanged. If supplied, it must be a single matrix (not a list), square with dimension equal to the number of columns in `B_space`, symmetric (within `sqrt(.Machine$double.eps)`), and positive semi-definite (eigenvalues >= `-sqrt(.Machine$double.eps)`); rank-deficient matrices are allowed and are in fact the typical use case.
 #'
-#' Two equivalent framings are useful. From a penalized-likelihood perspective, `prior_precision_space` acts as a supplementary fixed penalty on the basis coefficients, analogous to the `H` argument in [mgcv::gam()] — a user-specified quadratic penalty that sits alongside the data-driven smoothing penalty without an associated smoothing parameter to estimate. From a Bayesian perspective, it is a zero-mean Gaussian prior on the spatial basis coefficients: if the estimator's data-driven precision is \eqn{P} and `prior_precision_space = M`, the joint precision of the loadings becomes \eqn{P + M}.
+#' This argument is intended primarily as a soft identifiability penalty — for example, supplying the rank-deficient `S_null` matrix from an mgcv `t2()` construction to penalize the null space of the basis without affecting the directions already covered by `custom_space`. The matrix is supplied in covariance form to parallel `custom_space`; internally it is pseudo-inverted once at initialization (the cached precision is reused on every iteration) and added to the data-driven precision of the basis coefficients. From a penalized-likelihood perspective, this is analogous to the `H` argument in [mgcv::gam()] — a user-specified quadratic penalty with no associated smoothing parameter to estimate.
 #'
-#' A common ridge-style choice is `tau * diag(ncol(B_space))` for some positive scalar `tau`; larger `tau` produces stronger shrinkage of the loadings toward zero. Specifying the precision directly (rather than a covariance plus scale) lets the user construct arbitrary prior structures, including rank-deficient ones whose null space corresponds to directions left unpenalized. The prior combines additively with any `custom_space` structure, so when both are supplied the user is responsible for ensuring the two do not encode overlapping shrinkage. Computationally, the augmentation switches the REML objective for `custom_space` to an eigenvalue-based generalized log-determinant (`O(p^3)` per optim iteration, with `p = ncol(B_space)`); for the typical basis sizes used in CBFM this is not a bottleneck.}
+#' Any scaling should be folded into the matrix itself (e.g., supply `(1/tau) * S_null` for a stronger penalty); there is no separate scalar argument. The penalty combines additively with any `custom_space` structure, so when both are supplied the user is responsible for ensuring the two do not encode overlapping shrinkage. Computationally, the augmentation switches the REML objective for `custom_space` to an eigenvalue-based generalized log-determinant (`O(p^3)` per optim iteration, with `p = ncol(B_space)`); for the typical basis sizes used in CBFM this is not a bottleneck.}
 
-#' \item{prior_precision_time: }{An optional fixed precision matrix of the same shape as `prior_precision_space`, but with dimension equal to the number of columns in `B_time`. See `prior_precision_space` for a full description of the semantics, requirements, and intended usage.}
+#' \item{prior_covariance_time: }{An optional fixed covariance-shaped matrix of the same shape as `prior_covariance_space`, but with dimension equal to the number of columns in `B_time`. See `prior_covariance_space` for a full description of the semantics, requirements, and intended usage.}
 
-#' \item{prior_precision_spacetime: }{An optional fixed precision matrix of the same shape as `prior_precision_space`, but with dimension equal to the number of columns in `B_spacetime`. See `prior_precision_space` for a full description of the semantics, requirements, and intended usage.}
+#' \item{prior_covariance_spacetime: }{An optional fixed covariance-shaped matrix of the same shape as `prior_covariance_space`, but with dimension equal to the number of columns in `B_spacetime`. See `prior_covariance_space` for a full description of the semantics, requirements, and intended usage.}
 
 #' \item{lower_space_lambdas/upper_space_lambdas: }{Can be safely ignored for almost all applications.}
 
@@ -2463,7 +2463,7 @@ CBFM <- function(y, formula, ziformula = NULL, data,
                          new_LoadingnuggetSigma_space <- list(lambdas = 10) #' This is an arbitrary starting value!
                     new_LoadingnuggetSigma_space$invcov <- .pinv(Sigma_control[["custom_space"]])
                     new_LoadingnuggetSigma_space$cov <- Sigma_control[["custom_space"]]
-                    new_LoadingnuggetSigma_space <- .add_prior_precision(new_LoadingnuggetSigma_space, Sigma_control[["prior_precision_space"]])
+                    new_LoadingnuggetSigma_space <- .add_prior_precision(new_LoadingnuggetSigma_space, Sigma_control[[".prior_precision_space_cached"]])
                     }
                if(is.list(Sigma_control[["custom_space"]])) {
                     start_params$Sigma_space <- NULL
@@ -2500,7 +2500,7 @@ CBFM <- function(y, formula, ziformula = NULL, data,
                          new_LoadingnuggetSigma_time <- list(lambdas = 10) #' This is an arbitrary starting value!
                     new_LoadingnuggetSigma_time$invcov <- .pinv(Sigma_control[["custom_time"]])
                     new_LoadingnuggetSigma_time$cov <- Sigma_control[["custom_time"]]
-                    new_LoadingnuggetSigma_time <- .add_prior_precision(new_LoadingnuggetSigma_time, Sigma_control[["prior_precision_time"]])
+                    new_LoadingnuggetSigma_time <- .add_prior_precision(new_LoadingnuggetSigma_time, Sigma_control[[".prior_precision_time_cached"]])
                     }
                if(is.list(Sigma_control[["custom_time"]])) {
                     start_params$Sigma_time <- NULL
@@ -2537,7 +2537,7 @@ CBFM <- function(y, formula, ziformula = NULL, data,
                          new_LoadingnuggetSigma_spacetime <- list(lambdas = 10) #' This is an arbitrary starting value!
                     new_LoadingnuggetSigma_spacetime$invcov <- .pinv(Sigma_control[["custom_spacetime"]])
                     new_LoadingnuggetSigma_spacetime$cov <- Sigma_control[["custom_spacetime"]]
-                    new_LoadingnuggetSigma_spacetime <- .add_prior_precision(new_LoadingnuggetSigma_spacetime, Sigma_control[["prior_precision_spacetime"]])
+                    new_LoadingnuggetSigma_spacetime <- .add_prior_precision(new_LoadingnuggetSigma_spacetime, Sigma_control[[".prior_precision_spacetime_cached"]])
                     }
                if(is.list(Sigma_control[["custom_spacetime"]])) {
                     start_params$Sigma_spacetime <- NULL

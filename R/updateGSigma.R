@@ -373,7 +373,7 @@
                     if(any(Sigma_control$lower_space_lambdas < 1e-8))
                          Sigma_control$lower_space_lambdas[which(Sigma_control$lower_space_lambdas < 1e-8)] <- 1e-8
                     
-                    prior_precision_space <- Sigma_control[["prior_precision_space"]]
+                    prior_precision_space <- Sigma_control[[".prior_precision_space_cached"]]
                     if(is.matrix(Sigma_control[["custom_space"]])) {
                         Sigmainv_space <- .pinv(Sigma_control[["custom_space"]])
                         trace_quantity <- sum(diag(Sigmainv_space %*% AT_Ginv_A))
@@ -438,7 +438,7 @@
                     if(any(Sigma_control$lower_time_lambdas < 1e-8))
                          Sigma_control$lower_time_lambdas[which(Sigma_control$lower_time_lambdas < 1e-8)] <- 1e-8
                     
-                    prior_precision_time <- Sigma_control[["prior_precision_time"]]
+                    prior_precision_time <- Sigma_control[[".prior_precision_time_cached"]]
                     if(is.matrix(Sigma_control[["custom_time"]])) {
                          Sigmainv_time <- .pinv(Sigma_control[["custom_time"]])
                          trace_quantity <- sum(diag(Sigmainv_time %*% AT_Ginv_A))
@@ -501,7 +501,7 @@
                     if(any(Sigma_control$lower_spacetime_lambdas < 1e-8))
                          Sigma_control$lower_spacetime_lambdas[which(Sigma_control$lower_spacetime_lambdas < 1e-8)] <- 1e-8
                     
-                    prior_precision_spacetime <- Sigma_control[["prior_precision_spacetime"]]
+                    prior_precision_spacetime <- Sigma_control[[".prior_precision_spacetime_cached"]]
                     if(is.matrix(Sigma_control[["custom_spacetime"]])) {
                          Sigmainv_spacetime <- .pinv(Sigma_control[["custom_spacetime"]])
                          trace_quantity <- sum(diag(Sigmainv_spacetime %*% AT_Ginv_A))
@@ -579,7 +579,7 @@
 
 #' @noRd
 .update_LoadingSigma_fn <- function(Sigma, Sigma_control, use_rank_element, estimate_lambda_not_Sigma, which_B) {
-     prior_precision <- Sigma_control[[c("prior_precision_space", "prior_precision_time", "prior_precision_spacetime")[which_B]]]
+     prior_precision <- Sigma_control[[c(".prior_precision_space_cached", ".prior_precision_time_cached", ".prior_precision_spacetime_cached")[which_B]]]
 
      if(!estimate_lambda_not_Sigma) {
           num_basisfns <- nrow(Sigma)

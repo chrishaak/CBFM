@@ -163,7 +163,7 @@
     }
 
         
-.check_prior_precision <- function(M, in_use, dim_B, which_name, basis_name) {
+.check_prior_covariance <- function(M, in_use, dim_B, which_name, basis_name) {
      if(is.null(M))
           return(invisible(NULL))
      if(!in_use)
@@ -178,7 +178,7 @@
           stop("Sigma_control$", which_name, " should be a symmetric matrix.")
      e <- eigen(M, symmetric = TRUE, only.values = TRUE)$values
      if(min(e) < -sqrt(.Machine$double.eps))
-          stop("Sigma_control$", which_name, " should be positive semi-definite.")
+          stop("Sigma_control$", which_name, " should be positive semi-definite. Rank-deficient matrices are allowed; use them to express null-space-only penalties (e.g., the S_null matrix from an mgcv t2 construction).")
      invisible(NULL)
      }
 
@@ -504,9 +504,16 @@
         control$which_custom_Sigma_used[3] <- 1
         }
 
-     .check_prior_precision(control[["prior_precision_space"]],     which_B_used[1] == 1, num_spacebasisfns,     "prior_precision_space",     "B_space")
-     .check_prior_precision(control[["prior_precision_time"]],      which_B_used[2] == 1, num_timebasisfns,      "prior_precision_time",      "B_time")
-     .check_prior_precision(control[["prior_precision_spacetime"]], which_B_used[3] == 1, num_spacetimebasisfns, "prior_precision_spacetime", "B_spacetime")
+     .check_prior_covariance(control[["prior_covariance_space"]],     which_B_used[1] == 1, num_spacebasisfns,     "prior_covariance_space",     "B_space")
+     .check_prior_covariance(control[["prior_covariance_time"]],      which_B_used[2] == 1, num_timebasisfns,      "prior_covariance_time",      "B_time")
+     .check_prior_covariance(control[["prior_covariance_spacetime"]], which_B_used[3] == 1, num_spacetimebasisfns, "prior_covariance_spacetime", "B_spacetime")
+
+     #' Cache the pseudo-inverse of each prior_covariance_* once at init.
+     #' Downstream code reads these cached precisions instead of re-inverting every iteration.
+     #' Stored under leading-dot names to mark them as internal.
+     control[[".prior_precision_space_cached"]]     <- if(!is.null(control[["prior_covariance_space"]]))     .pinv(control[["prior_covariance_space"]])     else NULL
+     control[[".prior_precision_time_cached"]]      <- if(!is.null(control[["prior_covariance_time"]]))      .pinv(control[["prior_covariance_time"]])      else NULL
+     control[[".prior_precision_spacetime_cached"]] <- if(!is.null(control[["prior_covariance_spacetime"]])) .pinv(control[["prior_covariance_spacetime"]]) else NULL
 
      control$method <- match.arg(control$method, choices = c("REML","simple","ML"))
      #control$inv_method <- match.arg(control$inv_method, choices = c("chol2inv","schulz"))
